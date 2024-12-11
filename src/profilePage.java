@@ -20,6 +20,8 @@ public class profilePage extends JFrame {
     private JScrollPane scrollPane;
     private int chatRoomCounter = 0;
 
+    private JPanel notificationPanel;
+
     private static final Color backgroundColor = new Color(255, 236, 143);
     private static final Color buttonColor = new Color(82, 55, 56);
     private static final String STATUS_FILE_PATH = "status.csv"; // 상태 메시지 CSV 파일 경로
@@ -60,13 +62,7 @@ public class profilePage extends JFrame {
         // 옵션 패널 (빈 상태로 유지)
         optionPanel = new JPanel();
         optionPanel.setBackground(new Color(255, 240, 180));
-//        optionPanel.add(btn_AddFriend);
-//        btn_AddFriend.addActionListener(new ActionListener() {
-//            @Override
-//            public void actionPerformed(ActionEvent e) {
-//                addFriend();
-//            }
-//        });
+        optionPanel.add(NotificationPanel());
 
         // 하단 네비게이션 바
         JPanel bottomPanel = createBottomPanel();
@@ -281,6 +277,8 @@ public class profilePage extends JFrame {
         JPopupMenu popupMenu = new JPopupMenu();
         JMenuItem editTitleMenuItem = new JMenuItem("방 제목 수정");
         popupMenu.add(editTitleMenuItem);
+        JMenuItem addChatMember = new JMenuItem("초대");
+        popupMenu.add(addChatMember);
 
         // 우클릭 이벤트
         chatRoom.addMouseListener(new MouseAdapter() {
@@ -303,7 +301,7 @@ public class profilePage extends JFrame {
             public void mouseClicked(MouseEvent e) {
                 // 더블클릭 감지
                 if (e.getClickCount() == 2) {
-                    //openChatRoomWindow(chatRoomLabel.getText()); // 새로운 창 열기
+                    new chattingPage();
                 }
             }
         });
@@ -314,6 +312,241 @@ public class profilePage extends JFrame {
             if (newTitle != null && !newTitle.trim().isEmpty()) {
                 chatRoomLabel.setText(newTitle);
             }
+        });
+
+        addChatMember.addActionListener(e -> {
+            JFrame selectFriendsFrame = new JFrame("친구 초대");
+            selectFriendsFrame.setSize(300, 400);
+            selectFriendsFrame.setLocationRelativeTo(null);
+
+            JPanel friendSelectionPanel = new JPanel();
+            friendSelectionPanel.setLayout(new BoxLayout(friendSelectionPanel, BoxLayout.Y_AXIS));
+
+            // 친구 목록 출력
+            JScrollPane scrollPane = new JScrollPane(friendSelectionPanel);
+            scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+
+            JCheckBox[] friendCheckBoxes = new JCheckBox[friendListModel.size()];
+            for (int i = 0; i < friendListModel.size(); i++) {
+                Friend friend = friendListModel.get(i);
+                JCheckBox checkBox = new JCheckBox(friend.name);
+                friendCheckBoxes[i] = checkBox;
+                friendSelectionPanel.add(checkBox);
+            }
+
+            // 확인 버튼 추가
+            JButton confirmButton = new JButton("확인");
+            confirmButton.addActionListener(confirmEvent -> {
+                StringBuilder selectedFriends = new StringBuilder();
+                for (JCheckBox checkBox : friendCheckBoxes) {
+                    if (checkBox.isSelected()) {
+                        if (selectedFriends.length() > 0) {
+                            selectedFriends.append(", ");
+                        }
+                        selectedFriends.append(checkBox.getText());
+                    }
+                }
+
+                if (selectedFriends.length() > 0) {
+                    JOptionPane.showMessageDialog(selectFriendsFrame, "선택된 친구: " + selectedFriends.toString());
+
+                    // 서버로 초대 요청 보내기
+                    String selectedFriendsList = selectedFriends.toString();
+                    socketClient.sendCommand("CHAT_INVITE:" + selectedFriendsList); // 선택된 친구들에게 초대 요청 보내기
+
+                } else {
+                    JOptionPane.showMessageDialog(selectFriendsFrame, "선택된 친구가 없습니다.");
+                }
+
+                selectFriendsFrame.dispose(); // 창 닫기
+            });
+
+            JPanel buttonPanel = new JPanel();
+            buttonPanel.add(confirmButton);
+
+            selectFriendsFrame.add(scrollPane, BorderLayout.CENTER);
+            selectFriendsFrame.add(buttonPanel, BorderLayout.SOUTH);
+
+            selectFriendsFrame.setVisible(true);
+        });
+
+        // 채팅방 패널에 추가
+        chatRoomListPanel.add(chatRoom);
+        chatRoomListPanel.revalidate();
+        chatRoomListPanel.repaint();
+    }
+
+
+    private JPanel NotificationPanel() {
+        notificationPanel = new JPanel();
+        notificationPanel.setBackground(new Color(255, 240, 180));
+        notificationPanel.setLayout(new BoxLayout(notificationPanel, BoxLayout.Y_AXIS));
+
+        JLabel notificationLabel = new JLabel("알림 없음");
+        notificationLabel.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        notificationPanel.add(notificationLabel);
+        notificationPanel.setVisible(true); // 기본적으로 숨김
+
+        return notificationPanel;
+    }
+
+    // 알림 표시 메소드 추가
+    private void showNotification(String alertMessage) {
+        // 새로운 알림을 패널로 만들어 추가
+        JPanel notificationItem = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        notificationItem.setBackground(new Color(255, 240, 180));
+
+        JLabel notificationLabel = new JLabel(alertMessage);
+        notificationLabel.setFont(new Font("SansSerif", Font.PLAIN, 14));
+
+        JButton acceptButton = new JButton("수락");
+        acceptButton.addActionListener(e -> acceptInvitation(alertMessage, notificationItem));
+
+        JButton declineButton = new JButton("거절");
+        declineButton.addActionListener(e -> declineInvitation(alertMessage));
+
+        // 버튼들을 한 패널에 추가
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        buttonPanel.setBackground(new Color(255, 240, 180));
+        buttonPanel.add(acceptButton);
+        buttonPanel.add(declineButton);
+
+        // 알림 내용과 버튼 패널을 notificationItem에 추가
+        notificationItem.add(notificationLabel);
+        notificationItem.add(buttonPanel);
+
+        // notificationPanel에 추가 (알림들을 계속해서 추가할 수 있도록)
+        notificationPanel.add(notificationItem);
+        notificationPanel.revalidate(); // 레이아웃 갱신
+        notificationPanel.repaint();   // 화면 갱신
+    }
+
+    private void acceptInvitation(String alertMessage, JPanel notificationItem) {
+        // 알림을 수락했을 때 처리 로직
+        // 예: 채팅방을 추가하거나 초대 정보를 처리
+        String roomName = alertMessage.replace("초대받은 채팅방: ", ""); // 예시로 알림에서 채팅방 이름을 추출
+        addChatRoomByInvite(roomName); // 새 채팅방을 추가하는 메소드 호출
+
+        // 수락한 알림은 삭제
+        notificationPanel.remove(notificationItem);
+        notificationPanel.revalidate(); // 레이아웃 갱신
+        notificationPanel.repaint();    // 화면 갱신
+    }
+
+    private void declineInvitation(String alertMessage) {
+        // 알림을 거절했을 때 처리 로직
+        // 예: 아무 작업도 하지 않음
+        System.out.println("초대를 거절했습니다: " + alertMessage);
+    }
+
+    private void addChatRoomByInvite(String roomName) {
+        JPanel chatRoom = new JPanel();
+        chatRoom.setLayout(new BorderLayout());
+        chatRoom.setPreferredSize(new Dimension(360, 60));
+        chatRoom.setMaximumSize(new Dimension(360, 60)); // 고정 크기
+        chatRoom.setBackground(buttonColor);
+
+        // 채팅방 이름
+        JLabel chatRoomLabel = new JLabel(roomName);
+        chatRoomLabel.setFont(new Font("맑은 고딕", Font.BOLD, 14));
+        chatRoomLabel.setForeground(Color.WHITE);
+        chatRoomLabel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        chatRoom.add(chatRoomLabel, BorderLayout.WEST);
+
+        // 팝업 메뉴 생성
+        JPopupMenu popupMenu = new JPopupMenu();
+        JMenuItem editTitleMenuItem = new JMenuItem("방 제목 수정");
+        popupMenu.add(editTitleMenuItem);
+        JMenuItem addChatMember = new JMenuItem("초대");
+        popupMenu.add(addChatMember);
+
+        // 우클릭 이벤트
+        chatRoom.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    popupMenu.show(chatRoom, e.getX(), e.getY());
+                }
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    popupMenu.show(chatRoom, e.getX(), e.getY());
+                }
+            }
+
+            // 더블클릭 이벤트
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    new chattingPage();
+                }
+            }
+        });
+
+        // 방 제목 수정 기능
+        editTitleMenuItem.addActionListener(e -> {
+            String newTitle = JOptionPane.showInputDialog(chatRoom, "새로운 방 제목:", chatRoomLabel.getText());
+            if (newTitle != null && !newTitle.trim().isEmpty()) {
+                chatRoomLabel.setText(newTitle);
+            }
+        });
+
+        addChatMember.addActionListener(e -> {
+            JFrame selectFriendsFrame = new JFrame("친구 초대");
+            selectFriendsFrame.setSize(300, 400);
+            selectFriendsFrame.setLocationRelativeTo(null);
+
+            JPanel friendSelectionPanel = new JPanel();
+            friendSelectionPanel.setLayout(new BoxLayout(friendSelectionPanel, BoxLayout.Y_AXIS));
+
+            // 친구 목록 출력
+            JScrollPane scrollPane = new JScrollPane(friendSelectionPanel);
+            scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+
+            JCheckBox[] friendCheckBoxes = new JCheckBox[friendListModel.size()];
+            for (int i = 0; i < friendListModel.size(); i++) {
+                Friend friend = friendListModel.get(i);
+                JCheckBox checkBox = new JCheckBox(friend.name);
+                friendCheckBoxes[i] = checkBox;
+                friendSelectionPanel.add(checkBox);
+            }
+
+            // 확인 버튼 추가
+            JButton confirmButton = new JButton("확인");
+            confirmButton.addActionListener(confirmEvent -> {
+                StringBuilder selectedFriends = new StringBuilder();
+                for (JCheckBox checkBox : friendCheckBoxes) {
+                    if (checkBox.isSelected()) {
+                        if (selectedFriends.length() > 0) {
+                            selectedFriends.append(", ");
+                        }
+                        selectedFriends.append(checkBox.getText());
+                    }
+                }
+
+                if (selectedFriends.length() > 0) {
+                    JOptionPane.showMessageDialog(selectFriendsFrame, "선택된 친구: " + selectedFriends.toString());
+
+                    // 서버로 초대 요청 보내기
+                    String selectedFriendsList = selectedFriends.toString();
+                    socketClient.sendCommand("CHAT_INVITE:" + selectedFriendsList); // 선택된 친구들에게 초대 요청 보내기
+
+                } else {
+                    JOptionPane.showMessageDialog(selectFriendsFrame, "선택된 친구가 없습니다.");
+                }
+
+                selectFriendsFrame.dispose(); // 창 닫기
+            });
+
+            JPanel buttonPanel = new JPanel();
+            buttonPanel.add(confirmButton);
+
+            selectFriendsFrame.add(scrollPane, BorderLayout.CENTER);
+            selectFriendsFrame.add(buttonPanel, BorderLayout.SOUTH);
+
+            selectFriendsFrame.setVisible(true);
         });
 
         // 채팅방 패널에 추가
@@ -399,6 +632,7 @@ public class profilePage extends JFrame {
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
                 out.println("LOGIN:" + userID);
+                // ProfileSocketClient 클래스에서 메시지 수신 부분 수정
                 new Thread(() -> {
                     try {
                         String message;
@@ -406,12 +640,16 @@ public class profilePage extends JFrame {
                             if (message.startsWith("STATUS:")) {
                                 String status = message.substring(7);
                                 SwingUtilities.invokeLater(() -> updateFriendList(status));
+                            } else if (message.startsWith("ALERT:")) { // 알림 메시지 처리
+                                String alertMessage = message.substring(6); // "ALERT:" 이후의 메시지
+                                SwingUtilities.invokeLater(() -> showNotification(alertMessage)); // 알림 표시
                             }
                         }
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
                 }).start();
+
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -424,30 +662,6 @@ public class profilePage extends JFrame {
         }
     }
 
-    private class FrameDragListener extends MouseAdapter {
-        private final JFrame frame;
-        private Point mouseDownCompCoords = null;
-
-        FrameDragListener(JFrame frame) {
-            this.frame = frame;
-        }
-
-        @Override
-        public void mousePressed(MouseEvent e) {
-            mouseDownCompCoords = e.getPoint();
-        }
-
-        @Override
-        public void mouseReleased(MouseEvent e) {
-            mouseDownCompCoords = null;
-        }
-
-        @Override
-        public void mouseDragged(MouseEvent e) {
-            Point currCoords = e.getLocationOnScreen();
-            frame.setLocation(currCoords.x - mouseDownCompCoords.x, currCoords.y - mouseDownCompCoords.y);
-        }
-    }
 
     public static void main(String[] args) {
         new profilePage("User1");

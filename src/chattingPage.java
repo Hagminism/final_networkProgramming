@@ -66,7 +66,7 @@ public class chattingPage extends JFrame {
                     JOptionPane.YES_NO_OPTION
             );
             if (confirm == JOptionPane.YES_OPTION) {
-                System.exit(0); // 프로그램 완전히 종료
+                dispose(); // 채팅방 종료
             }
         });
 

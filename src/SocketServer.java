@@ -49,8 +49,10 @@ public class SocketServer {
                 // 클라이언트 메시지 처리
                 String message;
                 while ((message = in.readLine()) != null) {
-                    if (message.startsWith("ADD_FRIEND:")) {
-                        handleFriendRequest(message.substring(11));
+                    if (message.startsWith("CHAT_INVITE:")) {
+                        handleChatInvite(message.substring(12)); // 초대 메시지 처리
+                    } else if (message.startsWith("ADD_FRIEND:")) {
+                        handleFriendRequest(message.substring(11)); // 친구 추가 처리
                     } else if (message.equals("LOGOUT")) {
                         handleLogout();
                         break;
@@ -63,6 +65,7 @@ public class SocketServer {
             }
         }
 
+
         private void handleFriendRequest(String friendID) {
             if (clients.containsKey(friendID)) {
                 ClientHandler friendHandler = clients.get(friendID);
@@ -73,6 +76,22 @@ public class SocketServer {
                 out.println("친구 요청 실패: " + friendID + "님이 접속 중이 아닙니다.");
             }
         }
+
+        private void handleChatInvite(String selectedFriendsList) {
+            // 초대할 친구 목록 파싱
+            String[] friends = selectedFriendsList.split(", ");
+            for (String friendID : friends) {
+                if (clients.containsKey(friendID)) {
+                    ClientHandler friendHandler = clients.get(friendID);
+                    friendHandler.out.println("ALERT:" + userID + "님이 당신을 채팅방에 초대했습니다.");
+                    System.out.println(userID + "님이 " + friendID + "님에게 채팅방 초대 알림을 보냈습니다.");
+                } else {
+                    out.println("초대 실패: " + friendID + "님이 접속 중이 아닙니다.");
+                }
+            }
+        }
+
+
 
         private void handleLogout() {
             if (userID != null) {
