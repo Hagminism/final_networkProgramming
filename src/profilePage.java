@@ -2,6 +2,8 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
 import java.net.*;
+import java.util.HashMap;
+import java.util.Map;
 import javax.swing.*;
 
 public class profilePage extends JFrame {
@@ -25,6 +27,9 @@ public class profilePage extends JFrame {
     private static final Color backgroundColor = new Color(255, 236, 143);
     private static final Color buttonColor = new Color(82, 55, 56);
     private static final String STATUS_FILE_PATH = "status.csv"; // 상태 메시지 CSV 파일 경로
+
+    private String roomname;
+    private int roomPort = 5000;
 
     public profilePage(String userID) {
         super("프로필 및 친구창");
@@ -258,6 +263,16 @@ public class profilePage extends JFrame {
         return chatRoomPanel;
     }
 
+    private int getAvailablePort() {
+        while (true) {
+            try (ServerSocket serverSocket = new ServerSocket(roomPort)) {
+                return roomPort; // 포트가 사용되지 않으면 리턴
+            } catch (IOException e) {
+                roomPort++; // 포트가 사용 중이면 다음 포트로
+            }
+        }
+    }
+
     private void addChatRoom() {
         // 새로운 채팅방 생성
         JPanel chatRoom = new JPanel();
@@ -267,11 +282,24 @@ public class profilePage extends JFrame {
         chatRoom.setBackground(buttonColor);
 
         // 채팅방 이름
-        JLabel chatRoomLabel = new JLabel("Chat Room " + (++chatRoomCounter));
+        String roomName = "Chat Room " + (++chatRoomCounter);
+        JLabel chatRoomLabel = new JLabel(roomName);
         chatRoomLabel.setFont(new Font("맑은 고딕", Font.BOLD, 14));
         chatRoomLabel.setForeground(Color.WHITE);
         chatRoomLabel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         chatRoom.add(chatRoomLabel, BorderLayout.WEST);
+
+        // 채팅방 이름을 chatRoom에 저장 (chatRoom 자체에 roomname 추가)
+        chatRoom.putClientProperty("roomname", roomName);
+        int port = getAvailablePort(); // 고유한 포트 번호 할당
+        SocketServer.roomPortMap.put(roomName, port);
+        System.out.println("저장된 값 : " + SocketServer.roomPortMap.get(roomName));
+
+        // 서버 실행 (새로운 채팅방을 위해 고유한 포트 사용)
+        new Thread(() -> {
+            // ChatServer는 해당 포트로 서버 시작
+            new ChatServer(port); // 서버 시작
+        }).start();
 
         // 팝업 메뉴 생성
         JPopupMenu popupMenu = new JPopupMenu();
@@ -279,8 +307,9 @@ public class profilePage extends JFrame {
         popupMenu.add(editTitleMenuItem);
         JMenuItem addChatMember = new JMenuItem("초대");
         popupMenu.add(addChatMember);
+        JMenuItem deleteChatRoomMenuItem = new JMenuItem("삭제"); // 삭제 메뉴 추가
+        popupMenu.add(deleteChatRoomMenuItem);
 
-        // 우클릭 이벤트
         chatRoom.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
@@ -301,19 +330,67 @@ public class profilePage extends JFrame {
             public void mouseClicked(MouseEvent e) {
                 // 더블클릭 감지
                 if (e.getClickCount() == 2) {
-                    new chattingPage();
+                    // chatRoom에서 roomname을 가져옴
+                    String roomName = (String) chatRoom.getClientProperty("roomname");
+                    int port = SocketServer.roomPortMap.get(roomName);
+                    System.out.println(roomName + " / " + port);
+                    // 서버가 시작될 때까지 기다린 후 연결 시도
+                    new Thread(() -> {
+                        try {
+                            Thread.sleep(1000); // 서버 시작 대기 (예: 1초)
+                            new chattingPage("localhost", port); // 서버와 연결
+                        } catch (InterruptedException ex) {
+                            ex.printStackTrace();
+                        }
+                    }).start();
                 }
             }
         });
 
-        // 방 제목 수정 기능
         editTitleMenuItem.addActionListener(e -> {
+            String oldTitle = (String) chatRoom.getClientProperty("roomname"); // 기존 방 제목
             String newTitle = JOptionPane.showInputDialog(chatRoom, "새로운 방 제목:", chatRoomLabel.getText());
             if (newTitle != null && !newTitle.trim().isEmpty()) {
+                // UI 업데이트
                 chatRoomLabel.setText(newTitle);
+                chatRoom.putClientProperty("roomname", newTitle); // chatRoom에 새로운 방 제목 저장
+
+                // SocketServer.roomPortMap 업데이트
+                int getPort = SocketServer.roomPortMap.get(oldTitle); // 기존 포트 번호 가져오기
+                SocketServer.roomPortMap.remove(oldTitle); // 기존 항목 삭제
+                SocketServer.roomPortMap.put(newTitle, getPort); // 새 제목과 포트 매핑
+                System.out.println("방 제목 변경: " + oldTitle + " -> " + newTitle);
+
+                socketClient.sendCommand("TITLE_CHANGE:" + oldTitle + ":" + newTitle + ":" + getPort);
             }
         });
 
+        // 삭제 기능
+        deleteChatRoomMenuItem.addActionListener(e -> {
+            int confirm = JOptionPane.showConfirmDialog(chatRoom, "이 채팅방을 삭제하시겠습니까?", "삭제 확인", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                // 채팅방 이름 가져오기
+                String DeleteroomName = (String) chatRoom.getClientProperty("roomname");
+
+                // 채팅방 패널 제거
+                chatRoomListPanel.remove(chatRoom);
+
+                // SocketServer.roomPortMap에서 데이터 제거
+                SocketServer.roomPortMap.remove(DeleteroomName);
+
+                // 필요하면 서버 소켓 종료 로직 추가
+                // 예: ChatServer.stopServer(port);
+
+                // UI 업데이트
+                chatRoomListPanel.revalidate();
+                chatRoomListPanel.repaint();
+
+                System.out.println("채팅방 삭제됨: " + DeleteroomName);
+            }
+        });
+
+
+        // 초대 기능
         addChatMember.addActionListener(e -> {
             JFrame selectFriendsFrame = new JFrame("친구 초대");
             selectFriendsFrame.setSize(300, 400);
@@ -347,15 +424,22 @@ public class profilePage extends JFrame {
                     }
                 }
 
-                if (selectedFriends.length() > 0) {
-                    JOptionPane.showMessageDialog(selectFriendsFrame, "선택된 친구: " + selectedFriends.toString());
+                // 최신 방 이름 가져오기
+                String currentRoomName = (String) chatRoom.getClientProperty("roomname");
+
+                if (selectedFriends.length() > 0 && currentRoomName != null && !currentRoomName.isEmpty()) {
+                    JOptionPane.showMessageDialog(selectFriendsFrame,
+                            "선택된 친구: " + selectedFriends.toString() +
+                                    "\n채팅방 이름: " + currentRoomName +
+                                    "\n포트: " + SocketServer.roomPortMap.get(currentRoomName));
 
                     // 서버로 초대 요청 보내기
                     String selectedFriendsList = selectedFriends.toString();
-                    socketClient.sendCommand("CHAT_INVITE:" + selectedFriendsList); // 선택된 친구들에게 초대 요청 보내기
+                    socketClient.sendCommand("CHAT_INVITE:" + selectedFriendsList + ":" + currentRoomName + ":" +
+                            SocketServer.roomPortMap.get(currentRoomName)); // 친구 목록과 채팅방 이름, 포트번호를 함께 보내기
 
                 } else {
-                    JOptionPane.showMessageDialog(selectFriendsFrame, "선택된 친구가 없습니다.");
+                    JOptionPane.showMessageDialog(selectFriendsFrame, "선택된 친구 또는 채팅방 이름이 없습니다.");
                 }
 
                 selectFriendsFrame.dispose(); // 창 닫기
@@ -369,6 +453,8 @@ public class profilePage extends JFrame {
 
             selectFriendsFrame.setVisible(true);
         });
+
+
 
         // 채팅방 패널에 추가
         chatRoomListPanel.add(chatRoom);
@@ -422,10 +508,12 @@ public class profilePage extends JFrame {
     }
 
     private void acceptInvitation(String alertMessage, JPanel notificationItem) {
-        // 알림을 수락했을 때 처리 로직
-        // 예: 채팅방을 추가하거나 초대 정보를 처리
-        String roomName = alertMessage.replace("초대받은 채팅방: ", ""); // 예시로 알림에서 채팅방 이름을 추출
-        addChatRoomByInvite(roomName); // 새 채팅방을 추가하는 메소드 호출
+        // 초대 메시지에서 채팅방 이름과 포트 추출
+        String roomName = alertMessage.replaceAll(".*채팅방 '([^']*)'\\(포트: \\d+\\)에 초대.*", "$1");
+        int port = Integer.parseInt(alertMessage.replaceAll(".*포트: (\\d+)\\).*", "$1"));
+
+        // 채팅방 추가 처리
+        addChatRoomByInvite(roomName, port); // 포트를 함께 전달하도록 수정
 
         // 수락한 알림은 삭제
         notificationPanel.remove(notificationItem);
@@ -433,13 +521,19 @@ public class profilePage extends JFrame {
         notificationPanel.repaint();    // 화면 갱신
     }
 
+
+
+
     private void declineInvitation(String alertMessage) {
         // 알림을 거절했을 때 처리 로직
         // 예: 아무 작업도 하지 않음
         System.out.println("초대를 거절했습니다: " + alertMessage);
     }
 
-    private void addChatRoomByInvite(String roomName) {
+    private void addChatRoomByInvite(String roomName, int port) {
+        System.out.println(roomName + " 포트 : " + port);
+
+        // 새로운 채팅방 생성
         JPanel chatRoom = new JPanel();
         chatRoom.setLayout(new BorderLayout());
         chatRoom.setPreferredSize(new Dimension(360, 60));
@@ -447,18 +541,21 @@ public class profilePage extends JFrame {
         chatRoom.setBackground(buttonColor);
 
         // 채팅방 이름
-        JLabel chatRoomLabel = new JLabel(roomName);
+        JLabel chatRoomLabel = new JLabel(roomName); // 채팅방 이름은 초대받은 이름 그대로
         chatRoomLabel.setFont(new Font("맑은 고딕", Font.BOLD, 14));
         chatRoomLabel.setForeground(Color.WHITE);
         chatRoomLabel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         chatRoom.add(chatRoomLabel, BorderLayout.WEST);
 
+        // 채팅방 이름을 chatRoom에 저장 (chatRoom 자체에 roomname 추가)
+        chatRoom.putClientProperty("roomname", roomName);
+
+        System.out.println(roomName + " / " + port);
+
         // 팝업 메뉴 생성
         JPopupMenu popupMenu = new JPopupMenu();
-        JMenuItem editTitleMenuItem = new JMenuItem("방 제목 수정");
-        popupMenu.add(editTitleMenuItem);
-        JMenuItem addChatMember = new JMenuItem("초대");
-        popupMenu.add(addChatMember);
+        JMenuItem deleteChatRoomMenuItem = new JMenuItem("삭제"); // 삭제 메뉴 추가
+        popupMenu.add(deleteChatRoomMenuItem);
 
         // 우클릭 이벤트
         chatRoom.addMouseListener(new MouseAdapter() {
@@ -479,74 +576,44 @@ public class profilePage extends JFrame {
             // 더블클릭 이벤트
             @Override
             public void mouseClicked(MouseEvent e) {
+                // 더블클릭 감지
                 if (e.getClickCount() == 2) {
-                    new chattingPage();
-                }
-            }
-        });
-
-        // 방 제목 수정 기능
-        editTitleMenuItem.addActionListener(e -> {
-            String newTitle = JOptionPane.showInputDialog(chatRoom, "새로운 방 제목:", chatRoomLabel.getText());
-            if (newTitle != null && !newTitle.trim().isEmpty()) {
-                chatRoomLabel.setText(newTitle);
-            }
-        });
-
-        addChatMember.addActionListener(e -> {
-            JFrame selectFriendsFrame = new JFrame("친구 초대");
-            selectFriendsFrame.setSize(300, 400);
-            selectFriendsFrame.setLocationRelativeTo(null);
-
-            JPanel friendSelectionPanel = new JPanel();
-            friendSelectionPanel.setLayout(new BoxLayout(friendSelectionPanel, BoxLayout.Y_AXIS));
-
-            // 친구 목록 출력
-            JScrollPane scrollPane = new JScrollPane(friendSelectionPanel);
-            scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-
-            JCheckBox[] friendCheckBoxes = new JCheckBox[friendListModel.size()];
-            for (int i = 0; i < friendListModel.size(); i++) {
-                Friend friend = friendListModel.get(i);
-                JCheckBox checkBox = new JCheckBox(friend.name);
-                friendCheckBoxes[i] = checkBox;
-                friendSelectionPanel.add(checkBox);
-            }
-
-            // 확인 버튼 추가
-            JButton confirmButton = new JButton("확인");
-            confirmButton.addActionListener(confirmEvent -> {
-                StringBuilder selectedFriends = new StringBuilder();
-                for (JCheckBox checkBox : friendCheckBoxes) {
-                    if (checkBox.isSelected()) {
-                        if (selectedFriends.length() > 0) {
-                            selectedFriends.append(", ");
+                    System.out.println(roomName + " / " + port);
+                    // 서버가 시작될 때까지 기다린 후 연결 시도
+                    new Thread(() -> {
+                        try {
+                            Thread.sleep(1000); // 서버 시작 대기 (예: 1초)
+                            new chattingPage("localhost", port); // 서버와 연결
+                        } catch (InterruptedException ex) {
+                            ex.printStackTrace();
                         }
-                        selectedFriends.append(checkBox.getText());
-                    }
+                    }).start();
                 }
+            }
+        });
 
-                if (selectedFriends.length() > 0) {
-                    JOptionPane.showMessageDialog(selectFriendsFrame, "선택된 친구: " + selectedFriends.toString());
+        // 삭제 기능
+        deleteChatRoomMenuItem.addActionListener(e -> {
+            int confirm = JOptionPane.showConfirmDialog(chatRoom, "이 채팅방을 삭제하시겠습니까?", "삭제 확인", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                // 채팅방 이름 가져오기
+                String DeleteroomName = (String) chatRoom.getClientProperty("roomname");
 
-                    // 서버로 초대 요청 보내기
-                    String selectedFriendsList = selectedFriends.toString();
-                    socketClient.sendCommand("CHAT_INVITE:" + selectedFriendsList); // 선택된 친구들에게 초대 요청 보내기
+                // 채팅방 패널 제거
+                chatRoomListPanel.remove(chatRoom);
 
-                } else {
-                    JOptionPane.showMessageDialog(selectFriendsFrame, "선택된 친구가 없습니다.");
-                }
+                // SocketServer.roomPortMap에서 데이터 제거
+                SocketServer.roomPortMap.remove(DeleteroomName);
 
-                selectFriendsFrame.dispose(); // 창 닫기
-            });
+                // 필요하면 서버 소켓 종료 로직 추가
+                // 예: ChatServer.stopServer(port);
 
-            JPanel buttonPanel = new JPanel();
-            buttonPanel.add(confirmButton);
+                // UI 업데이트
+                chatRoomListPanel.revalidate();
+                chatRoomListPanel.repaint();
 
-            selectFriendsFrame.add(scrollPane, BorderLayout.CENTER);
-            selectFriendsFrame.add(buttonPanel, BorderLayout.SOUTH);
-
-            selectFriendsFrame.setVisible(true);
+                System.out.println("채팅방 삭제됨: " + DeleteroomName);
+            }
         });
 
         // 채팅방 패널에 추가
@@ -554,6 +621,7 @@ public class profilePage extends JFrame {
         chatRoomListPanel.revalidate();
         chatRoomListPanel.repaint();
     }
+
 
     private class Friend {
         String name;
@@ -660,10 +728,5 @@ public class profilePage extends JFrame {
                 out.println(command);
             }
         }
-    }
-
-
-    public static void main(String[] args) {
-        new profilePage("User1");
     }
 }
