@@ -10,13 +10,14 @@ public class profilePage extends JFrame {
     private JList<Friend> friendList;
     private JPanel mainPanel, friendPanel, optionPanel;
     private CardLayout cardLayout;
-    private JButton btn_Friend, btn_Option, btn_AddFriend, btn_Exit;
+    private JButton btn_Friend, btn_Option, btn_AddFriend, btn_Exit, btn_refresh;
     private JLabel myProfilePicLabel, myNameLabel, myStatusMessageLabel;
     private ProfileSocketClient socketClient;
     private Socket socket; // 클라이언트 소켓
     private String userID;
     private FrameDragListener frameDragListener;
     private int roomPort = 5000;
+    private String lastReceivedStatusMessage = ""; // 최근에 받은 STATUS 메시지 저장용
 
     private JPanel chatRoomListPanel;
     private JButton btn_Chatroom, btn_AddChatRoom;
@@ -39,18 +40,69 @@ public class profilePage extends JFrame {
         addMouseListener(frameDragListener);
         addMouseMotionListener(frameDragListener);
 
+        // 윈도우 종료 시 이벤트 처리
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                System.out.println("windowClosing 이벤트 발생");
+                String currentStatus = myStatusMessageLabel.getText();
+                System.out.println("현재 상태 메시지: " + currentStatus);
+                saveUserStatusMessage(userID, currentStatus);
+                System.out.println("상태 메시지 저장 로직 호출 완료");
+                System.exit(0);
+            }
+        });
+
         // UI 설정
         setUndecorated(true);
         setSize(400, 600);
         setLocation(1000, 100);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+//        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         buildGUI();
         loadUserStatusMessage(); // 상태 메시지 로드
 
         setVisible(true);
     }
 
+    // 상태 메시지 CSV 업데이트 메서드
+    private void saveUserStatusMessage(String userID, String newStatus) {
+        // 기존 CSV 파일 내용 읽기
+        java.util.List<String[]> data = new java.util.ArrayList<>();
+        boolean userFound = false;
 
+        try (BufferedReader br = new BufferedReader(new FileReader(STATUS_FILE_PATH))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] row = line.split(",", 2);
+                if (row.length == 2) {
+                    // 해당 유저ID가 이미 존재하면 상태 메시지 업데이트
+                    if (row[0].trim().equals(userID)) {
+                        row[1] = newStatus; // 새로운 상태로 갱신
+                        userFound = true;
+                    }
+                    data.add(row);
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        // 만약 기존 CSV에 해당 userID가 없다면 추가
+        if (!userFound) {
+            data.add(new String[]{userID, newStatus});
+        }
+
+        // CSV 파일 다시 쓰기
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(STATUS_FILE_PATH))) {
+            for (String[] row : data) {
+                bw.write(row[0] + "," + row[1]);
+                bw.newLine();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
     public profilePage(String userID) {
         super("프로필 및 친구창");
@@ -209,14 +261,12 @@ public class profilePage extends JFrame {
         textPanel.add(Box.createVerticalStrut(15));
         textPanel.add(myStatusMessageLabel);
 
+        JPanel btnSet = new JPanel(new GridLayout(1, 2));
+
         btn_AddFriend = new JButton("추가");
         btn_AddFriend.setBackground(new Color(200, 255, 200));
-        panel.add(myProfilePicLabel, BorderLayout.WEST);
-        panel.add(textPanel, BorderLayout.CENTER);
-        panel.add(btn_AddFriend, BorderLayout.EAST);
-
         btn_AddFriend.addActionListener(e -> {
-            String friendID = JOptionPane.showInputDialog(this, "추가할 친구의 ID를 입력하세요:");
+            String friendID = JOptionPane.showInputDialog(this, "추가할 친구의 ID를 입력하세요:","친구 추가",  JOptionPane.INFORMATION_MESSAGE);
             if (isFriendAlready(friendID)){
                 JOptionPane.showMessageDialog(this, "이미 친구입니다.");
             }
@@ -227,6 +277,20 @@ public class profilePage extends JFrame {
                 //updateUserList("", userID);
             }
         });
+
+        btn_refresh = new JButton("🔃");
+        btn_refresh.setBackground(new Color(200, 255, 200));
+        btn_refresh.addActionListener(e -> {
+            // refresh 버튼 클릭 시, 마지막으로 받은 statusMessage를 기준으로 다시 UI 업데이트
+            updateUserList(lastReceivedStatusMessage);
+        });
+
+        btnSet.add(btn_AddFriend);
+        btnSet.add(btn_refresh);
+
+        panel.add(myProfilePicLabel, BorderLayout.WEST);
+        panel.add(textPanel, BorderLayout.CENTER);
+        panel.add(btnSet, BorderLayout.EAST);
 
         return panel;
     }
@@ -293,7 +357,7 @@ public class profilePage extends JFrame {
         btn_Exit.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                System.exit(0);
+                dispatchEvent(new WindowEvent(profilePage.this, WindowEvent.WINDOW_CLOSING));
             }
         });
 
@@ -947,38 +1011,98 @@ public class profilePage extends JFrame {
     }
 
     private void updateUserList(String statusMessage) {
-        System.out.println(statusMessage); // 디버깅용 출력
-        String[] entries = statusMessage.split(","); // 여러 친구 정보 ','로 분리
+        // 받은 statusMessage를 클래스 멤버 변수에 저장
+        lastReceivedStatusMessage = statusMessage;
 
-        for (String entry : entries) {
-            String[] parts = entry.split(":", 2); // "아이디:상태메시지" 분리
-            if (parts.length == 2) { // 데이터가 올바르게 형식화된 경우만 처리
-                String friendID = parts[0].trim();   // 친구의 아이디
-                String statusMsg = parts[1].trim(); // 친구의 상태 메시지
+        java.util.Map<String, String> statusMap = new java.util.HashMap<>();
+        java.util.Map<String, Boolean> onlineMap = new java.util.HashMap<>();
 
-                // 본인 아이디는 제외
-                if (friendID.equals(userID)) {
-                    continue;
-                }
-
-                boolean found = false;
-                // 이미 존재하는 친구인지 확인
-                for (int i = 0; i < friendListModel.size(); i++) {
-                    Friend friend = friendListModel.get(i);
-                    if (friend.name.equals(friendID)) {
-                        // 이미 존재하면 상태 메시지만 업데이트
-                        friend.statusMessage = statusMsg;
-                        found = true;
-                        break;
-                    }
-                }
-
-                // 친구가 목록에 없으면 새로 추가
-                if (!found) {
-                    friendListModel.addElement(new Friend(friendID, statusMsg, true));
+        if (statusMessage != null && !statusMessage.trim().isEmpty()) {
+            // STATUS: 뒤에 있는 내용을 파싱
+            // 형식: userID:statusMsg:online/offline,userID:statusMsg:online/offline,...
+            String[] entries = statusMessage.split(",");
+            for (String entry : entries) {
+                String[] parts = entry.split(":", 3);
+                if (parts.length == 3) {
+                    String friendID = parts[0].trim();
+                    String friendStatus = parts[1].trim();
+                    String onlineStatus = parts[2].trim();
+                    statusMap.put(friendID, friendStatus);
+                    onlineMap.put(friendID, "online".equalsIgnoreCase(onlineStatus));
                 }
             }
         }
-        friendList.repaint(); // UI 갱신
+
+        // 친구 목록 CSV에서 가져오기
+        java.util.List<String> friends = getFriendsFromCSV(userID);
+
+        friendListModel.clear();
+
+        // 친구가 없는 경우 아무도 표시하지 않음
+        if (friends.isEmpty()) {
+            friendList.repaint();
+            return;
+        }
+
+        // 친구 목록을 돌며 상태 메시지와 온라인 여부 반영
+        for (String friendID : friends) {
+            String fStatusMsg = statusMap.get(friendID);
+            boolean isOnline = false;
+            if (fStatusMsg == null) {
+                // 상태 메시지가 서버 STATUS에 없으면 로컬 CSV에서 가져오기
+                fStatusMsg = getFriendStatusMessage(friendID);
+            } else {
+                // STATUS에 포함되어 있으면 onlineMap에서도 정보를 얻을 수 있다.
+                isOnline = onlineMap.getOrDefault(friendID, false);
+            }
+
+            // 상태 메시지 없으면 기본값
+            if (fStatusMsg == null || fStatusMsg.trim().isEmpty()) {
+                fStatusMsg = "상태 메시지가 없습니다.";
+            }
+
+            friendListModel.addElement(new Friend(friendID, fStatusMsg, isOnline));
+        }
+
+        friendList.repaint();
+    }
+
+
+    // 친구 목록을 CSV에서 불러오는 메서드 추가
+    private java.util.List<String> getFriendsFromCSV(String userID) {
+        java.util.List<String> friends = new java.util.ArrayList<>();
+        String filePath = "friendships.csv";
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split(",");
+                if (parts.length == 2) {
+                    // userID와 친구 관계 확인
+                    if (parts[0].equals(userID)) {
+                        friends.add(parts[1]);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return friends;
+    }
+
+    // 친구의 상태 메시지를 userStatusMessage.csv에서 불러오는 메서드
+    private String getFriendStatusMessage(String friendID) {
+        try (BufferedReader br = new BufferedReader(new FileReader(STATUS_FILE_PATH))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] data = line.split(",");
+                if (data.length == 2 && data[0].trim().equals(friendID)) {
+                    return data[1].trim();
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return "상태 메시지가 없습니다.";
     }
 }

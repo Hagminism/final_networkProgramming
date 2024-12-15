@@ -37,13 +37,12 @@ public class SocketServer {
         }
     }
 
-    // 접속 상태와 상태 메시지 브로드캐스트
     public void broadcastStatus() {
         StringBuilder statusMessage = new StringBuilder("STATUS:");
         userStatuses.forEach((user, status) -> {
-            if (activeUsers.containsKey(user)) { // 접속 중인 사용자만
-                statusMessage.append(user).append(":").append(status).append(",");
-            }
+            boolean isOnline = activeUsers.containsKey(user);
+            statusMessage.append(user).append(":").append(status)
+                    .append(":").append(isOnline ? "online" : "offline").append(",");
         });
 
         if (statusMessage.length() > 7) {
@@ -52,6 +51,7 @@ public class SocketServer {
 
         clients.keySet().forEach(client -> client.sendMessage(statusMessage.toString()));
     }
+
 
 
     // 현재 접속자 목록 출력 (서버 콘솔용)
