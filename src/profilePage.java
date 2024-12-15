@@ -705,6 +705,8 @@ public class profilePage extends JFrame {
 
         // 팝업 메뉴 생성
         JPopupMenu popupMenu = new JPopupMenu();
+        JMenuItem editTitleMenuItem = new JMenuItem("방 제목 수정");
+        popupMenu.add(editTitleMenuItem);
         JMenuItem deleteChatRoomMenuItem = new JMenuItem("삭제"); // 삭제 메뉴 추가
         popupMenu.add(deleteChatRoomMenuItem);
 
@@ -752,6 +754,25 @@ public class profilePage extends JFrame {
                 }
             }
 
+        });
+
+        // 방 이름 수정
+        editTitleMenuItem.addActionListener(e -> {
+            String oldTitle = (String) chatRoom.getClientProperty("roomname"); // 기존 방 제목
+            String newTitle = JOptionPane.showInputDialog(chatRoom, "새로운 방 제목:", chatRoomLabel.getText());
+            if (newTitle != null && !newTitle.trim().isEmpty()) {
+                // UI 업데이트
+                chatRoomLabel.setText(newTitle);
+                chatRoom.putClientProperty("roomname", newTitle); // chatRoom에 새로운 방 제목 저장
+
+                // SocketServer.roomPortMap 업데이트
+                int getPort = SocketServer.roomPortMap.get(oldTitle); // 기존 포트 번호 가져오기
+                SocketServer.roomPortMap.remove(oldTitle); // 기존 항목 삭제
+                SocketServer.roomPortMap.put(newTitle, getPort); // 새 제목과 포트 매핑
+                System.out.println("방 제목 변경: " + oldTitle + " -> " + newTitle);
+
+                socketClient.sendCommand("TITLE_CHANGE:" + oldTitle + ":" + newTitle + ":" + getPort);
+            }
         });
 
         // 삭제 기능
