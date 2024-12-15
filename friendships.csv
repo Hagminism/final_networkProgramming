@@ -4,3 +4,5 @@ user1,admin
 admin,user1
 admin,user2
 user2,admin
+user3,user1
+user1,user3

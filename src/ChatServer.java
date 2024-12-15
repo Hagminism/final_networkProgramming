@@ -8,9 +8,11 @@ public class ChatServer {
     private Vector<FileChatMsg> chattingData = new Vector<>();
 
     private int port;
+    private String userID;
 
-    public ChatServer(int port) {
+    public ChatServer(int port, String userID) {
         this.port = port;
+        this.userID = userID;
         startServer();
     }
 
@@ -62,10 +64,10 @@ public class ChatServer {
         @Override
         public void run() {
             try {
-                System.out.println("클라이언트 연결됨: " + socket.getInetAddress());
+                System.out.println("클라이언트 연결됨: " + userID);
 
                 // 입장 메시지 브로드캐스트
-                FileChatMsg joinMsg = new FileChatMsg("System", FileChatMsg.MODE_TX_STRING, socket.getInetAddress() + " 님이 입장하셨습니다.");
+                FileChatMsg joinMsg = new FileChatMsg("System", FileChatMsg.MODE_TX_STRING, userID + " 님이 입장하셨습니다.");
                 broadcast(joinMsg, this);
 
                 synchronized (chattingData) {
@@ -95,7 +97,7 @@ public class ChatServer {
                 clients.remove(this);
 
                 // 퇴장 메시지 브로드캐스트
-                FileChatMsg leaveMsg = new FileChatMsg("System", FileChatMsg.MODE_TX_STRING, socket.getInetAddress() + " 님이 퇴장하셨습니다.");
+                FileChatMsg leaveMsg = new FileChatMsg("System", FileChatMsg.MODE_TX_STRING, userID + " 님이 퇴장하셨습니다.");
                 broadcast(leaveMsg, this);
 
                 socket.close();
