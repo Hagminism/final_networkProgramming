@@ -30,8 +30,11 @@ public class canvasPage extends JFrame {
     private Socket socket;
     private PrintWriter out;
 
-    public canvasPage() {
+    private static int port;
+
+    public canvasPage(int port) {
         super("캔버스");
+        this.port = port;
         buildGUI();
         connectToServer();
         setVisible(true);
@@ -232,7 +235,7 @@ public class canvasPage extends JFrame {
 
     private void connectToServer() {
         try {
-            socket = new Socket("localhost", 12345);
+            socket = new Socket("localhost", port);
             out = new PrintWriter(socket.getOutputStream(), true);
 
             new Thread(() -> {
@@ -267,9 +270,5 @@ public class canvasPage extends JFrame {
         String tool = parts[6];
 
         drawLine(x1, y1, x2, y2, color, size, tool);
-    }
-
-    public static void main(String[] args) {
-        new canvasPage();
     }
 }

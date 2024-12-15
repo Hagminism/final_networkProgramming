@@ -1,9 +1,8 @@
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
+import java.net.Socket;
 
 import javax.swing.*;
 
@@ -20,11 +19,13 @@ public class loginPage extends JFrame {
         setUndecorated(true);
         frameDragListener = new FrameDragListener(this);
 
+        // GUI 창의 크기와 위치, 배경색을 정하고 UI 패널 구성
         buildGUI();
 
         setVisible(true);
     }
 
+    // GUI 창의 크기와 위치, 배경색을 정하고 UI 패널 구성
     private void buildGUI() {
         setSize(400, 600);
         setLocation(1000, 100);
@@ -38,12 +39,14 @@ public class loginPage extends JFrame {
         mouseMove();
     }
 
+    // 우측 상단 종료 버튼을 생성하는 함수
     private void createExitBtn(JPanel panel) {
         Image img = Toolkit.getDefaultToolkit().getImage("image/Exit_btn.png");
         img = img.getScaledInstance(25,25,Image.SCALE_DEFAULT);
         Icon icon = new ImageIcon(img);
         btn_Exit = new JButton(icon);
         btn_Exit.setBounds(375, 0, 25, 25);
+
         btn_Exit.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -51,9 +54,11 @@ public class loginPage extends JFrame {
             }
         });
 
+        // 부모 패널(loginPage) 자체에 부착
         panel.add(btn_Exit);
     }
 
+    // 창 상단을 드래그 가능하도록 하는 함수
     private void mouseMove() {
         addMouseListener(frameDragListener);
         addMouseMotionListener(frameDragListener);
@@ -139,22 +144,36 @@ public class loginPage extends JFrame {
         loginButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                String enteredID = userID.getText();
-                String enteredPW = password.getText();
+                String enteredID = userID.getText().trim();
+                String enteredPW = password.getText().trim();
 
                 if (authenticate(enteredID, enteredPW)) {
-                    // 로그인 성공
-                    JOptionPane.showMessageDialog(null, enteredID + "님 환영합니다!", "성공", JOptionPane.INFORMATION_MESSAGE);
-                    dispose(); // 현재 로그인 창 닫기
+                    try {
+                        Socket socket = new Socket("localhost", 12345); // 새 소켓 생성
+                        PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-                    // 프로필 페이지 열기
-                    profilePage profile = new profilePage(enteredID); // profilePage 인스턴스 생성
+                        out.println("LOGIN:" + enteredID);
+
+                        String serverResponse = in.readLine();
+                        if ("WELCOME".equals(serverResponse)) {
+                            JOptionPane.showMessageDialog(null, enteredID + "님 환영합니다!", "성공", JOptionPane.INFORMATION_MESSAGE);
+                            dispose(); // 로그인 창 닫기
+                            new profilePage(enteredID, socket); // 프로필 페이지 열기 (소켓 유지)
+                        } else if (serverResponse.startsWith("ERROR")) {
+                            JOptionPane.showMessageDialog(null, serverResponse, "로그인 실패", JOptionPane.ERROR_MESSAGE);
+                        }
+                    } catch (IOException ex) {
+                        JOptionPane.showMessageDialog(null, "서버 연결 실패: " + ex.getMessage(), "오류", JOptionPane.ERROR_MESSAGE);
+                        ex.printStackTrace();
+                    }
                 } else {
-                    // 로그인 실패
                     JOptionPane.showMessageDialog(null, "로그인 실패! ID 또는 PW를 확인하세요.", "실패", JOptionPane.ERROR_MESSAGE);
                 }
             }
         });
+
+
 
         panel.add(Box.createVerticalStrut(30)); // 로그인 패널 - 버튼 사이 간격
         panel.add(loginButton);
@@ -169,12 +188,13 @@ public class loginPage extends JFrame {
 
         try (BufferedReader br = new BufferedReader(new FileReader(csvFilePath))) {
             String line;
-            while ((line = br.readLine()) != null) {
+            while ((line = br.readLine()) != null) { // 더 읽을 내용이 없을 때까지 csv 파일을 한 줄씩 읽어옴
                 String[] credentials = line.split(","); // ID와 PW는 콤마로 구분된다고 가정
                 if (credentials.length == 2) {
                     String storedID = credentials[0].trim();
                     String storedPW = credentials[1].trim();
 
+                    // csv 파일에서 읽어온 id와 pw가 입력한 값과 같으면 인증 성공, true를 리턴.
                     if (storedID.equals(enteredID) && storedPW.equals(enteredPW)) {
                         return true; // 인증 성공
                     }

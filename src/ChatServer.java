@@ -3,17 +3,20 @@ import java.net.*;
 import java.util.Vector;
 
 public class ChatServer {
-    private static final int PORT_NUM = 54321; // 고정된 포트 번호
     private ServerSocket serverSocket = null;
     private Vector<ClientHandler> clients = new Vector<>();
+    private Vector<FileChatMsg> chattingData = new Vector<>();
 
-    public ChatServer() {
+    private int port;
+
+    public ChatServer(int port) {
+        this.port = port;
         startServer();
     }
 
     private void startServer() {
         try {
-            serverSocket = new ServerSocket(PORT_NUM);
+            serverSocket = new ServerSocket(port);
             System.out.println("서버가 시작되었습니다.");
 
             while (true) {
@@ -65,11 +68,18 @@ public class ChatServer {
                 FileChatMsg joinMsg = new FileChatMsg("System", FileChatMsg.MODE_TX_STRING, socket.getInetAddress() + " 님이 입장하셨습니다.");
                 broadcast(joinMsg, this);
 
+                synchronized (chattingData) {
+                    for(FileChatMsg msg : chattingData){
+                        rewrite(msg, this);
+                    }
+                }
+
                 while (true) {
                     Object received = objIn.readObject();
                     if (received instanceof FileChatMsg) {
                         FileChatMsg msg = (FileChatMsg) received;
                         handleMessage(msg);
+                        chattingData.add(msg);
                     }
                 }
             } catch (IOException | ClassNotFoundException e) {
@@ -112,8 +122,13 @@ public class ChatServer {
         }
     }
 
-
-    public static void main(String[] args) {
-        new ChatServer();
+    private void rewrite(FileChatMsg msg, ClientHandler sender) {
+        try {
+            sender.objOut.writeObject(msg);
+            sender.objOut.flush();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
+
 }

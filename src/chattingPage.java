@@ -18,8 +18,15 @@ public class chattingPage extends JFrame {
     private ObjectInputStream objIn;
     private ObjectOutputStream objOut;
 
-    public chattingPage() {
+    private String host;
+    private int port;
+    private final int canvasPort = port + 100;
+
+    public chattingPage(String host, int port) {
         super("채팅방");
+
+        this.host = host;
+        this.port = port;
 
         setUndecorated(true);
         frameDragListener = new FrameDragListener(this);
@@ -81,8 +88,8 @@ public class chattingPage extends JFrame {
         b_canvas.setBackground(new Color(255, 200, 200));
         b_canvas.setBorder(BorderFactory.createLineBorder(Color.GRAY));
         b_canvas.addActionListener(e -> {
-            new Thread(() -> new canvasServer()).start(); // 캔버스 서버 실행
-            SwingUtilities.invokeLater(() -> Canvas = new canvasPage()); // 캔버스 페이지 실행
+            new Thread(() -> new canvasServer(canvasPort)).start(); // 캔버스 서버 실행
+            SwingUtilities.invokeLater(() -> Canvas = new canvasPage(canvasPort)); // 캔버스 페이지 실행
         });
 
         // 컴포넌트 배치
@@ -156,7 +163,7 @@ public class chattingPage extends JFrame {
 
     private void connectToServer() {
         try {
-            socket = new Socket("localhost", 54321);
+            socket = new Socket(host, port);
             objOut = new ObjectOutputStream(socket.getOutputStream());
             objIn = new ObjectInputStream(socket.getInputStream());
 
@@ -413,9 +420,5 @@ public class chattingPage extends JFrame {
         } catch (IOException e) {
             JOptionPane.showMessageDialog(this, "이모티콘 전송 실패: " + e.getMessage());
         }
-    }
-
-    public static void main(String[] args) {
-        new chattingPage();
     }
 }

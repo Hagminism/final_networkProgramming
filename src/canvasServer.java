@@ -3,28 +3,25 @@ import java.net.*;
 import java.util.*;
 
 public class canvasServer {
-    private static final int PORT = 12345;
     private static Vector<PrintWriter> clients = new Vector<PrintWriter>();
     private static Vector<String> drawingData = new Vector<>(); // 그림 데이터를 저장할 Vector
+    private static int port;
 
-    public canvasServer() {
+    public canvasServer(int port) {
+        this.port = port;
         startServer();
     }
 
     private static void startServer(){
         System.out.println("서버가 시작되었습니다.");
 
-        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+        try (ServerSocket serverSocket = new ServerSocket(port)) {
             while (true) {
                 new ClientHandler(serverSocket.accept()).start();
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
-
-    public static void main(String[] args) {
-        new canvasServer();
     }
 
     private static class ClientHandler extends Thread {
