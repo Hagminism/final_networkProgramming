@@ -22,13 +22,15 @@ public class chattingPage extends JFrame {
     private String host;
     private int port;
     private String roomName;
+    private String userID;
 
-    public chattingPage(String host, int port, String roomName) {
+    public chattingPage(String host, int port, String roomName, String userID) {
         super("채팅방");
 
         this.host = host;
         this.port = port;
         this.roomName = roomName;
+        this.userID = userID;
 
         setUndecorated(true);
         frameDragListener = new FrameDragListener(this);
@@ -190,21 +192,16 @@ public class chattingPage extends JFrame {
         }
     }
 
-    private void displaySystemMessage(String message) {
-        appendMessage(message, false, true); // 시스템 메시지는 왼쪽 정렬, 헤더 없음
-    }
-
-
     private void sendMessage(String message) {
         if (message.trim().isEmpty()) return;
         try {
             // 메시지 본문만 서버로 전송
-            FileChatMsg msg = new FileChatMsg("나", FileChatMsg.MODE_TX_STRING, message);
+            FileChatMsg msg = new FileChatMsg(userID, FileChatMsg.MODE_TX_STRING, message);
             objOut.writeObject(msg);
             objOut.flush();
 
             // 전송한 메시지를 UI에 표시 (헤더는 appendMessage에서 처리)
-            appendMessage(message, true, false);
+            appendMessage(message, msg.getUserID());
         } catch (IOException e) {
             JOptionPane.showMessageDialog(this, "메시지 전송 실패: " + e.getMessage());
         }
@@ -225,7 +222,7 @@ public class chattingPage extends JFrame {
 
                 // FileChatMsg 생성 및 전송
                 FileChatMsg msg = new FileChatMsg(
-                        "나",
+                        userID,
                         isImage ? FileChatMsg.MODE_TX_IMAGE : FileChatMsg.MODE_TX_FILE,
                         fileName,
                         fileData
@@ -235,9 +232,9 @@ public class chattingPage extends JFrame {
 
                 // 이미지 또는 파일 링크 출력
                 if (isImage) {
-                    appendImage(new ImageIcon(fileData), true);
+                    appendImage(new ImageIcon(fileData), msg.getUserID());
                 } else {
-                    appendFileLink(fileName, fileData, true);
+                    appendFileLink(fileName, fileData, msg.getUserID());
                 }
             } catch (IOException e) {
                 JOptionPane.showMessageDialog(this, "파일 전송 실패: " + e.getMessage());
@@ -245,17 +242,17 @@ public class chattingPage extends JFrame {
         }
     }
 
-    private void appendFileLink(String fileName, byte[] fileData, boolean isRight) {
+    private void appendFileLink(String fileName, byte[] fileData, String sender) {
         StyledDocument doc = t_display.getStyledDocument();
 
         try {
             // 헤더 스타일 설정
             SimpleAttributeSet headerAttr = new SimpleAttributeSet();
-            StyleConstants.setAlignment(headerAttr, isRight ? StyleConstants.ALIGN_RIGHT : StyleConstants.ALIGN_LEFT);
-            StyleConstants.setForeground(headerAttr, isRight ? Color.BLUE : Color.RED);
+            StyleConstants.setAlignment(headerAttr, userID.equals(sender) ? StyleConstants.ALIGN_RIGHT : StyleConstants.ALIGN_LEFT);
+            StyleConstants.setForeground(headerAttr, userID.equals(sender) ? Color.BLUE : Color.RED);
 
             // 헤더 추가
-            String header = isRight ? "나: " : "상대: ";
+            String header = userID.equals(sender) ? "나: " : sender + ": ";
             doc.insertString(doc.getLength(), header + "\n", headerAttr);
             doc.setParagraphAttributes(doc.getLength() - header.length(), header.length(), headerAttr, false);
 
@@ -320,31 +317,38 @@ public class chattingPage extends JFrame {
     }
 
     private void handleReceivedMessage(FileChatMsg msg) {
-        boolean isSystem = "System".equals(msg.getUserID());
         switch (msg.getMode()) {
             case FileChatMsg.MODE_TX_STRING:
-                appendMessage(msg.getMessage(), false, isSystem);
+                appendMessage(msg.getMessage(), msg.getUserID());
                 break;
             case FileChatMsg.MODE_TX_IMAGE:
-                appendImage(new ImageIcon(msg.getFileData()), false);
+                appendImage(new ImageIcon(msg.getFileData()), msg.getUserID());
                 break;
             case FileChatMsg.MODE_TX_FILE:
-                appendFileLink(msg.getMessage(), msg.getFileData(), false);
+                appendFileLink(msg.getMessage(), msg.getFileData(), msg.getUserID());
                 break;
         }
     }
 
-    private void appendMessage(String message, boolean isRight, boolean isSystem) {
+    private void appendMessage(String message, String sender) {
         StyledDocument doc = t_display.getStyledDocument();
 
         try {
             // 새로운 스타일 객체 생성
             SimpleAttributeSet attr = new SimpleAttributeSet();
-            StyleConstants.setAlignment(attr, isRight ? StyleConstants.ALIGN_RIGHT : StyleConstants.ALIGN_LEFT);
-            StyleConstants.setForeground(attr, isSystem ? Color.GRAY : (isRight ? Color.BLUE : Color.RED)); // 시스템 메시지는 회색
+            StyleConstants.setAlignment(attr, userID.equals(sender) ? StyleConstants.ALIGN_RIGHT : StyleConstants.ALIGN_LEFT);
+
+            // 메시지 색상 설정
+            if(sender.equals("System")){
+                StyleConstants.setForeground(attr, Color.GRAY);
+            } else if (userID.equals(sender)) {
+                StyleConstants.setForeground(attr, Color.BLUE); // 내가 보낸 메시지는 파란색
+            } else {
+                StyleConstants.setForeground(attr, Color.RED); // 다른 사용자의 메시지는 빨간색
+            }
 
             // 메시지 추가
-            String header = isSystem ? "" : (isRight ? "나: " : "상대: ");
+            String header = (userID.equals(sender) ? "나: " : sender + ": ");
             doc.insertString(doc.getLength(), header + message + "\n", attr);
             doc.setParagraphAttributes(doc.getLength() - message.length() - header.length(), message.length() + header.length(), attr, false);
         } catch (BadLocationException e) {
@@ -352,17 +356,18 @@ public class chattingPage extends JFrame {
         }
     }
 
-    private void appendImage(ImageIcon image, boolean isRight) {
+
+    private void appendImage(ImageIcon image, String sender) {
         StyledDocument doc = t_display.getStyledDocument();
 
         try {
             // 헤더 스타일 설정
             SimpleAttributeSet headerAttr = new SimpleAttributeSet();
-            StyleConstants.setAlignment(headerAttr, isRight ? StyleConstants.ALIGN_RIGHT : StyleConstants.ALIGN_LEFT);
-            StyleConstants.setForeground(headerAttr, isRight ? Color.BLUE : Color.RED);
+            StyleConstants.setAlignment(headerAttr, userID.equals(sender) ? StyleConstants.ALIGN_RIGHT : StyleConstants.ALIGN_LEFT);
+            StyleConstants.setForeground(headerAttr, userID.equals(sender) ? Color.BLUE : Color.RED);
 
             // 헤더 추가
-            String header = isRight ? "나: " : "상대: ";
+            String header = userID.equals(sender) ? "나: " : sender + ": ";
             int startHeader = doc.getLength();
             doc.insertString(startHeader, header + "\n", headerAttr);
             doc.setParagraphAttributes(startHeader, header.length(), headerAttr, false);
@@ -380,7 +385,7 @@ public class chattingPage extends JFrame {
 
             // 이미지 정렬 적용
             SimpleAttributeSet imageAttr = new SimpleAttributeSet();
-            StyleConstants.setAlignment(imageAttr, isRight ? StyleConstants.ALIGN_RIGHT : StyleConstants.ALIGN_LEFT);
+            StyleConstants.setAlignment(imageAttr, userID.equals(sender) ? StyleConstants.ALIGN_RIGHT : StyleConstants.ALIGN_LEFT);
             doc.setParagraphAttributes(startImage, 1, imageAttr, false);
 
             // 줄바꿈 추가
@@ -427,12 +432,12 @@ public class chattingPage extends JFrame {
             byte[] emojiData = Files.readAllBytes(emojiFile.toPath());
 
             // FileChatMsg 생성 및 전송
-            FileChatMsg msg = new FileChatMsg("나", FileChatMsg.MODE_TX_IMAGE, emojiFileName, emojiData);
+            FileChatMsg msg = new FileChatMsg(userID, FileChatMsg.MODE_TX_IMAGE, emojiFileName, emojiData);
             objOut.writeObject(msg);
             objOut.flush();
 
             // 채팅창에 표시
-            appendImage(new ImageIcon(emojiData), true);
+            appendImage(new ImageIcon(emojiData), msg.getUserID());
         } catch (IOException e) {
             JOptionPane.showMessageDialog(this, "이모티콘 전송 실패: " + e.getMessage());
         }

@@ -434,7 +434,7 @@ public class profilePage extends JFrame {
         // 서버 실행 (새로운 채팅방을 위해 고유한 포트 사용)
         new Thread(() -> {
             // ChatServer는 해당 포트로 서버 시작
-            new ChatServer(port); // 서버 시작
+            new ChatServer(port, userID); // 서버 시작
         }).start();
 
         // 팝업 메뉴 생성
@@ -474,7 +474,7 @@ public class profilePage extends JFrame {
                     new Thread(() -> {
                         try {
                             Thread.sleep(1000); // 서버 시작 대기 (예: 1초)
-                            new chattingPage("localhost", port, roomName); // 서버와 연결
+                            new chattingPage("localhost", port, roomName, userID); // 서버와 연결
                         } catch (InterruptedException ex) {
                             ex.printStackTrace();
                         }
@@ -810,7 +810,7 @@ public class profilePage extends JFrame {
                     new Thread(() -> {
                         try {
                             Thread.sleep(1000); // 서버 시작 대기 (예: 1초)
-                            new chattingPage("localhost", port, roomName); // 서버와 연결
+                            new chattingPage("localhost", port, roomName, userID); // 서버와 연결
                         } catch (InterruptedException ex) {
                             ex.printStackTrace();
                         }
