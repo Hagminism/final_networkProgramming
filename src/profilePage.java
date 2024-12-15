@@ -410,7 +410,7 @@ public class profilePage extends JFrame {
                     new Thread(() -> {
                         try {
                             Thread.sleep(1000); // 서버 시작 대기 (예: 1초)
-                            new chattingPage("localhost", port); // 서버와 연결
+                            new chattingPage("localhost", port, roomName); // 서버와 연결
                         } catch (InterruptedException ex) {
                             ex.printStackTrace();
                         }
@@ -507,9 +507,10 @@ public class profilePage extends JFrame {
 
                     // 서버로 초대 요청 보내기
                     String selectedFriendsList = selectedFriends.toString();
-                    socketClient.sendCommand("CHAT_INVITE:" + selectedFriendsList + ":" + currentRoomName + ":" +
-                            SocketServer.roomPortMap.get(currentRoomName)); // 친구 목록과 채팅방 이름, 포트번호를 함께 보내기
-
+                    String[] friends = selectedFriendsList.split(", ");
+                    for(String friend : friends){
+                        socketClient.sendCommand("CHAT_INVITE:" + friend + ":" + currentRoomName + ":" + SocketServer.roomPortMap.get(currentRoomName)); // 친구 목록과 채팅방 이름, 포트번호를 함께 보내기
+                    }
                 } else {
                     JOptionPane.showMessageDialog(selectFriendsFrame, "선택된 친구 또는 채팅방 이름이 없습니다.");
                 }
@@ -704,12 +705,9 @@ public class profilePage extends JFrame {
 
         // 팝업 메뉴 생성
         JPopupMenu popupMenu = new JPopupMenu();
-        JMenuItem editTitleMenuItem = new JMenuItem("방 제목 수정");
-        popupMenu.add(editTitleMenuItem);
-        JMenuItem addChatMember = new JMenuItem("초대");
-        popupMenu.add(addChatMember);
+        JMenuItem deleteChatRoomMenuItem = new JMenuItem("삭제"); // 삭제 메뉴 추가
+        popupMenu.add(deleteChatRoomMenuItem);
 
-        // 우클릭 이벤트
         chatRoom.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
@@ -746,7 +744,7 @@ public class profilePage extends JFrame {
                     new Thread(() -> {
                         try {
                             Thread.sleep(1000); // 서버 시작 대기 (예: 1초)
-                            new chattingPage("localhost", port); // 서버와 연결
+                            new chattingPage("localhost", port, roomName); // 서버와 연결
                         } catch (InterruptedException ex) {
                             ex.printStackTrace();
                         }
@@ -754,72 +752,30 @@ public class profilePage extends JFrame {
                 }
             }
 
-
-
         });
 
-        // 방 제목 수정 기능
-        editTitleMenuItem.addActionListener(e -> {
-            String newTitle = JOptionPane.showInputDialog(chatRoom, "새로운 방 제목:", chatRoomLabel.getText());
-            if (newTitle != null && !newTitle.trim().isEmpty()) {
-                chatRoomLabel.setText(newTitle);
+        // 삭제 기능
+        deleteChatRoomMenuItem.addActionListener(e -> {
+            int confirm = JOptionPane.showConfirmDialog(chatRoom, "이 채팅방을 삭제하시겠습니까?", "삭제 확인", JOptionPane.YES_NO_OPTION);
+            if (confirm == JOptionPane.YES_OPTION) {
+                // 채팅방 이름 가져오기
+                String DeleteroomName = (String) chatRoom.getClientProperty("roomname");
+
+                // 채팅방 패널 제거
+                chatRoomListPanel.remove(chatRoom);
+
+                // SocketServer.roomPortMap에서 데이터 제거
+                SocketServer.roomPortMap.remove(DeleteroomName);
+
+                // 필요하면 서버 소켓 종료 로직 추가
+                // 예: ChatServer.stopServer(port);
+
+                // UI 업데이트
+                chatRoomListPanel.revalidate();
+                chatRoomListPanel.repaint();
+
+                System.out.println("채팅방 삭제됨: " + DeleteroomName);
             }
-        });
-
-        addChatMember.addActionListener(e -> {
-            JFrame selectFriendsFrame = new JFrame("친구 초대");
-            selectFriendsFrame.setSize(300, 400);
-            selectFriendsFrame.setLocationRelativeTo(null);
-
-            JPanel friendSelectionPanel = new JPanel();
-            friendSelectionPanel.setLayout(new BoxLayout(friendSelectionPanel, BoxLayout.Y_AXIS));
-
-            // 친구 목록 출력
-            JScrollPane scrollPane = new JScrollPane(friendSelectionPanel);
-            scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-
-            JCheckBox[] friendCheckBoxes = new JCheckBox[friendListModel.size()];
-            for (int i = 0; i < friendListModel.size(); i++) {
-                Friend friend = friendListModel.get(i);
-                JCheckBox checkBox = new JCheckBox(friend.name);
-                friendCheckBoxes[i] = checkBox;
-                friendSelectionPanel.add(checkBox);
-            }
-
-            // 확인 버튼 추가
-            JButton confirmButton = new JButton("확인");
-            confirmButton.addActionListener(confirmEvent -> {
-                StringBuilder selectedFriends = new StringBuilder();
-                for (JCheckBox checkBox : friendCheckBoxes) {
-                    if (checkBox.isSelected()) {
-                        if (selectedFriends.length() > 0) {
-                            selectedFriends.append(", ");
-                        }
-                        selectedFriends.append(checkBox.getText());
-                    }
-                }
-
-                if (selectedFriends.length() > 0) {
-                    JOptionPane.showMessageDialog(selectFriendsFrame, "선택된 친구: " + selectedFriends.toString());
-
-                    // 서버로 초대 요청 보내기
-                    String selectedFriendsList = selectedFriends.toString();
-                    socketClient.sendCommand("CHAT_INVITE:" + selectedFriendsList); // 선택된 친구들에게 초대 요청 보내기
-
-                } else {
-                    JOptionPane.showMessageDialog(selectFriendsFrame, "선택된 친구가 없습니다.");
-                }
-
-                selectFriendsFrame.dispose(); // 창 닫기
-            });
-
-            JPanel buttonPanel = new JPanel();
-            buttonPanel.add(confirmButton);
-
-            selectFriendsFrame.add(scrollPane, BorderLayout.CENTER);
-            selectFriendsFrame.add(buttonPanel, BorderLayout.SOUTH);
-
-            selectFriendsFrame.setVisible(true);
         });
 
         // 채팅방 패널에 추가

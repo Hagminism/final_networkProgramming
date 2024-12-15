@@ -21,12 +21,14 @@ public class chattingPage extends JFrame {
 
     private String host;
     private int port;
+    private String roomName;
 
-    public chattingPage(String host, int port) {
+    public chattingPage(String host, int port, String roomName) {
         super("채팅방");
 
         this.host = host;
         this.port = port;
+        this.roomName = roomName;
 
         setUndecorated(true);
         frameDragListener = new FrameDragListener(this);
@@ -78,7 +80,7 @@ public class chattingPage extends JFrame {
         });
 
         // 채팅방 이름 (중앙)
-        JLabel chatTitle = new JLabel("한성부기 님과의 채팅", JLabel.CENTER);
+        JLabel chatTitle = new JLabel(roomName, JLabel.CENTER);
         chatTitle.setFont(new Font("나눔고딕", Font.BOLD, 18));
         chatTitle.setForeground(Color.DARK_GRAY);
 
