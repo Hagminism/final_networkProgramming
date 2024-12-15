@@ -137,18 +137,13 @@ public class profilePage extends JFrame {
         friendPanel.add(createMyProfilePanel(), BorderLayout.NORTH);
         friendPanel.add(createFriendList(), BorderLayout.CENTER);
 
-        // 옵션 패널 (빈 상태로 유지)
-        optionPanel = new JPanel();
-        optionPanel.setBackground(new Color(255, 240, 180));
-        optionPanel.add(NotificationPanel());
-
         // 하단 네비게이션 바
         JPanel bottomPanel = createBottomPanel();
 
         // 메인 패널에 추가
         mainPanel.add(friendPanel, "FRIEND");
         mainPanel.add(createChatRoomPanel(), "CHATROOM"); // 채팅방 화면
-        mainPanel.add(optionPanel, "OPTION");
+        mainPanel.add(NotificationPanel(), "OPTION");
 
         add(mainPanel, BorderLayout.CENTER);
         add(bottomPanel, BorderLayout.SOUTH);
@@ -601,25 +596,38 @@ public class profilePage extends JFrame {
 
 
     private JPanel NotificationPanel() {
+        JPanel optionPanel = new JPanel(null);
+        optionPanel.setBackground(backgroundColor);
+        createExitButton(optionPanel);
+
         notificationPanel = new JPanel();
-        notificationPanel.setBackground(new Color(255, 240, 180));
         notificationPanel.setLayout(new BoxLayout(notificationPanel, BoxLayout.Y_AXIS));
+        notificationPanel.setBackground(backgroundColor);
 
-        JLabel notificationLabel = new JLabel("알림 없음");
-        notificationLabel.setFont(new Font("SansSerif", Font.PLAIN, 14));
-        notificationPanel.add(notificationLabel);
-        notificationPanel.setVisible(true); // 기본적으로 숨김
+        scrollPane = new JScrollPane(notificationPanel, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scrollPane.setBounds(0, 80, 400, 400); // 스크롤 패널 위치 및 크기 설정
+        scrollPane.setBorder(null); // 테두리 제거
+        optionPanel.add(scrollPane);
 
-        return notificationPanel;
+        return optionPanel;
     }
 
-    // 알림 표시 메소드 추가
+    // 친구 추가 알림 표시 메소드 추가
     private void showFriendNotification(String alertMessage, String requesterID) {
-        JPanel notificationItem = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        notificationItem.setBackground(new Color(255, 240, 180));
+        JPanel notificationItem = new JPanel();
+        notificationItem.setBackground(backgroundColor);
+
+        JPanel alertPanel = new JPanel();
+        alertPanel.setLayout(new BorderLayout());
+        alertPanel.setPreferredSize(new Dimension(370,60));
+        alertPanel.setMaximumSize(new Dimension(370, 60));
+        alertPanel.setBackground(buttonColor);
 
         JLabel notificationLabel = new JLabel(alertMessage);
-        notificationLabel.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        notificationLabel.setFont(new Font("맑은 고딕", Font.BOLD, 14));
+        notificationLabel.setForeground(Color.WHITE);
+        notificationLabel.setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
+        alertPanel.add(notificationLabel, BorderLayout.WEST);
 
         JButton acceptButton = new JButton("수락");
         acceptButton.addActionListener(new ActionListener() {
@@ -637,12 +645,12 @@ public class profilePage extends JFrame {
         declineButton.addActionListener(e -> declineInvitation(alertMessage, notificationItem));
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        buttonPanel.setBackground(new Color(255, 240, 180));
+        buttonPanel.setBackground(buttonColor);
         buttonPanel.add(acceptButton);
         buttonPanel.add(declineButton);
+        alertPanel.add(buttonPanel);
 
-        notificationItem.add(notificationLabel);
-        notificationItem.add(buttonPanel);
+        notificationItem.add(alertPanel);
 
         notificationPanel.add(notificationItem);
         notificationPanel.revalidate();
@@ -651,12 +659,21 @@ public class profilePage extends JFrame {
 
     // 알림 표시 메소드 추가
     private void showNotification(String alertMessage) {
-        JPanel notificationItem = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        notificationItem.setBackground(new Color(255, 240, 180));
+        JPanel notificationItem = new JPanel();
+        notificationItem.setBackground(backgroundColor);
+
+        JPanel alertPanel = new JPanel();
+        alertPanel.setLayout(new BorderLayout());
+        alertPanel.setPreferredSize(new Dimension(370,60));
+        alertPanel.setMaximumSize(new Dimension(370, 60));
+        alertPanel.setBackground(buttonColor);
 
         String[] parts = alertMessage.split(":");
-        JLabel notificationLabel = new JLabel(parts[1] + "(포트 : " + parts[2] + ")에 초대되었습니다.");
-        notificationLabel.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        JLabel notificationLabel = new JLabel(parts[1] + "에 초대되었습니다.");
+        notificationLabel.setFont(new Font("맑은 고딕", Font.BOLD, 14));
+        notificationLabel.setForeground(Color.WHITE);
+        notificationLabel.setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
+        alertPanel.add(notificationLabel, BorderLayout.WEST);
 
         JButton acceptButton = new JButton("수락");
         acceptButton.addActionListener(e -> acceptInvitation(alertMessage, notificationItem)
@@ -666,12 +683,12 @@ public class profilePage extends JFrame {
         declineButton.addActionListener(e -> declineInvitation(alertMessage, notificationItem));
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        buttonPanel.setBackground(new Color(255, 240, 180));
+        buttonPanel.setBackground(buttonColor);
         buttonPanel.add(acceptButton);
         buttonPanel.add(declineButton);
+        alertPanel.add(buttonPanel);
 
-        notificationItem.add(notificationLabel);
-        notificationItem.add(buttonPanel);
+        notificationItem.add(alertPanel);
 
         notificationPanel.add(notificationItem);
         notificationPanel.revalidate();
