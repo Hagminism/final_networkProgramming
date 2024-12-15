@@ -1,6 +1,7 @@
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.util.Arrays;
@@ -20,7 +21,6 @@ public class chattingPage extends JFrame {
 
     private String host;
     private int port;
-    private final int canvasPort = port + 100;
 
     public chattingPage(String host, int port) {
         super("채팅방");
@@ -88,7 +88,11 @@ public class chattingPage extends JFrame {
         b_canvas.setBackground(new Color(255, 200, 200));
         b_canvas.setBorder(BorderFactory.createLineBorder(Color.GRAY));
         b_canvas.addActionListener(e -> {
-            new Thread(() -> new canvasServer(canvasPort)).start(); // 캔버스 서버 실행
+            int canvasPort = port + 100;
+            if(!isPortInUse(canvasPort)){
+                System.out.println("canvasPort = " + canvasPort);
+                new Thread(() -> new canvasServer(canvasPort)).start(); // 캔버스 서버 실행
+            }
             SwingUtilities.invokeLater(() -> Canvas = new canvasPage(canvasPort)); // 캔버스 페이지 실행
         });
 
@@ -98,6 +102,16 @@ public class chattingPage extends JFrame {
         panel.add(b_canvas, BorderLayout.EAST); // 우측 상단 캔버스 버튼
 
         return panel;
+    }
+
+    private boolean isPortInUse(int port){
+        try (ServerSocket socket = new ServerSocket(port)) {
+            // 포트를 열었으므로 사용 중이 아님
+            return false;
+        } catch (IOException e) {
+            // 포트를 열 수 없으므로 이미 사용 중
+            return true;
+        }
     }
 
     private JPanel createDisplayPanel() {

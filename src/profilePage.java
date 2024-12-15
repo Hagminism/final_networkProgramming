@@ -1004,10 +1004,4 @@ public class profilePage extends JFrame {
         }
         friendList.repaint(); // UI 갱신
     }
-
-
-
-    public static void main(String[] args) {
-        new profilePage("");
-    }
 }
