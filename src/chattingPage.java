@@ -225,19 +225,26 @@ public class chattingPage extends JFrame {
                 String fileName = file.getName();
                 boolean isImage = isImageFile(fileName);
 
+                ImageIcon imageIcon = null;
+                if (isImage) {
+                    // 이미지 데이터로 ImageIcon 생성
+                    imageIcon = new ImageIcon(fileData);
+                }
+
                 // FileChatMsg 생성 및 전송
                 FileChatMsg msg = new FileChatMsg(
                         userID,
                         isImage ? FileChatMsg.MODE_TX_IMAGE : FileChatMsg.MODE_TX_FILE,
                         fileName,
+                        imageIcon,
                         fileData
                 );
                 objOut.writeObject(msg);
                 objOut.flush();
 
-                // 이미지 또는 파일 링크 출력
+                // UI 업데이트
                 if (isImage) {
-                    appendImage(new ImageIcon(fileData), msg.getUserID());
+                    appendImage(imageIcon, msg.getUserID());
                 } else {
                     appendFileLink(fileName, fileData, msg.getUserID());
                 }
@@ -246,6 +253,7 @@ public class chattingPage extends JFrame {
             }
         }
     }
+
 
     private void appendFileLink(String fileName, byte[] fileData, String sender) {
         StyledDocument doc = t_display.getStyledDocument();
