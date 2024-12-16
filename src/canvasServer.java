@@ -1,8 +1,15 @@
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import javax.swing.*;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultStyledDocument;
+import java.awt.*;
 
-public class canvasServer {
+public class canvasServer extends JFrame{
+    private JTextPane t_display;
+    private DefaultStyledDocument document;
+
     private Vector<PrintWriter> clients = new Vector<PrintWriter>();
     private Vector<String> drawingData = new Vector<>(); // 그림 데이터를 저장할 Vector
     private int port; // 인스턴스마다 고유한 포트
@@ -10,11 +17,45 @@ public class canvasServer {
     public canvasServer(int port) {
         this.port = port; // 인스턴스 변수로 포트 저장
         System.out.println("port = " + port);
+        buildGUI();
         startServer();
     }
 
+    private void buildGUI(){
+        setTitle("canvasServer");
+        setSize(400,600);
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        add(createDisplayPanel(), BorderLayout.CENTER);
+        setVisible(true);
+    }
+
+    private JPanel createDisplayPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+
+        document = new DefaultStyledDocument();
+        t_display = new JTextPane(document);
+
+        t_display.setEditable(false);
+
+        panel.add(new JScrollPane(t_display), BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    private void printDisplay(String msg) {
+        int len = t_display.getDocument().getLength();
+
+        try {
+            document.insertString(len, msg + "\n", null);
+        } catch (BadLocationException e) {
+            e.printStackTrace();
+        }
+
+        t_display.setCaretPosition(len);
+    }
+
     private void startServer() {
-        System.out.println("서버가 포트 " + port + "에서 시작되었습니다.");
+        printDisplay("서버가 포트 " + port + "에서 시작되었습니다.");
 
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             while (true) {
@@ -47,7 +88,7 @@ public class canvasServer {
 
         @Override
         public void run() {
-            System.out.println("클라이언트 연결: " + socket);
+            printDisplay("클라이언트 연결: " + socket);
 
             try (
                     InputStreamReader inputStreamReader = new InputStreamReader(socket.getInputStream());
@@ -68,7 +109,7 @@ public class canvasServer {
 
                 String message;
                 while ((message = in.readLine()) != null) {
-                    System.out.println("수신된 메시지: " + message);
+                    printDisplay("수신된 메시지: " + message);
 
                     if (message.equals("CLEAR")) {
                         synchronized (server.getDrawingData()) {
@@ -83,7 +124,7 @@ public class canvasServer {
                     broadcast(message);
                 }
             } catch (IOException e) {
-                System.out.println("연결 끊김");
+                printDisplay("연결 끊김");
             } finally {
                 if (out != null) {
                     synchronized (server.getClients()) {
@@ -95,7 +136,7 @@ public class canvasServer {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
-                System.out.println("클라이언트 연결 종료: " + socket);
+                printDisplay("클라이언트 연결 종료: " + socket);
             }
         }
 

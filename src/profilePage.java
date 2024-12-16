@@ -464,7 +464,6 @@ public class profilePage extends JFrame {
                     // chatRoom에서 roomname을 가져옴
                     String roomName = (String) chatRoom.getClientProperty("roomname");
                     int port = SocketServer.roomPortMap.get(roomName);
-                    System.out.println(roomName + " / " + port);
                     // 서버가 시작될 때까지 기다린 후 연결 시도
                     new Thread(() -> {
                         try {

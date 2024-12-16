@@ -185,6 +185,11 @@ public class chattingPage extends JFrame {
             objOut = new ObjectOutputStream(socket.getOutputStream());
             objIn = new ObjectInputStream(socket.getInputStream());
 
+            // 접속 후 바로 로그인 메시지 전송
+            FileChatMsg loginMessage = new FileChatMsg(userID, FileChatMsg.MODE_LOGIN, userID);
+            objOut.writeObject(loginMessage);
+            objOut.flush();
+
             Thread receiveThread = new Thread(this::receiveMessages);
             receiveThread.start();
         } catch (IOException e) {
@@ -312,7 +317,7 @@ public class chattingPage extends JFrame {
                 }
             }
         } catch (IOException | ClassNotFoundException e) {
-            JOptionPane.showMessageDialog(this, "메시지 수신 실패: " + e.getMessage());
+            System.out.println("메시지 수신 실패: " + e.getMessage());
         }
     }
 
