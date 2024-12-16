@@ -1,8 +1,15 @@
+import javax.swing.*;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultStyledDocument;
+import java.awt.*;
 import java.io.*;
 import java.net.*;
 import java.util.Vector;
 
-public class ChatServer {
+public class ChatServer extends JFrame {
+    private JTextPane t_display;
+    private DefaultStyledDocument document;
+
     private ServerSocket serverSocket = null;
     private Vector<ClientHandler> clients = new Vector<>();
     private Vector<FileChatMsg> chattingData = new Vector<>();
@@ -13,25 +20,59 @@ public class ChatServer {
     public ChatServer(int port, String userID) {
         this.port = port;
         this.userID = userID;
+        buildGUI();
         startServer();
+    }
+
+    private void buildGUI(){
+        setTitle("ChatServer");
+        setSize(400,600);
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        add(createDisplayPanel(), BorderLayout.CENTER);
+        setVisible(true);
+    }
+
+    private JPanel createDisplayPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+
+        document = new DefaultStyledDocument();
+        t_display = new JTextPane(document);
+
+        t_display.setEditable(false);
+
+        panel.add(new JScrollPane(t_display), BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    private void printDisplay(String msg) {
+        int len = t_display.getDocument().getLength();
+
+        try {
+            document.insertString(len, msg + "\n", null);
+        } catch (BadLocationException e) {
+            e.printStackTrace();
+        }
+
+        t_display.setCaretPosition(len);
     }
 
     private void startServer() {
         try {
             serverSocket = new ServerSocket(port);
-            System.out.println("서버가 시작되었습니다.");
+            printDisplay("서버가 시작되었습니다.");
 
             while (true) {
                 Socket clientSocket = serverSocket.accept();
                 String clientAddress = clientSocket.getInetAddress().getHostAddress();
-                System.out.println("클라이언트가 연결되었습니다: " + clientAddress);
+                printDisplay("클라이언트가 연결되었습니다: " + clientAddress);
 
                 ClientHandler handler = new ClientHandler(clientSocket);
                 clients.add(handler);
                 handler.start();
             }
         } catch (IOException e) {
-            System.err.println("서버 오류: " + e.getMessage());
+            printDisplay("서버 오류: " + e.getMessage());
         } finally {
             stopServer();
         }
@@ -41,7 +82,7 @@ public class ChatServer {
         try {
             if (serverSocket != null) serverSocket.close();
         } catch (IOException e) {
-            System.err.println("서버 소켓 종료 오류: " + e.getMessage());
+            printDisplay("서버 소켓 종료 오류: " + e.getMessage());
         }
     }
 
@@ -57,22 +98,35 @@ public class ChatServer {
                 objOut = new ObjectOutputStream(socket.getOutputStream());
                 objIn = new ObjectInputStream(socket.getInputStream());
             } catch (IOException e) {
-                System.err.println("스트림 생성 오류: " + e.getMessage());
+                printDisplay("스트림 생성 오류: " + e.getMessage());
             }
         }
 
         @Override
         public void run() {
             try {
-                System.out.println("클라이언트 연결됨: " + userID);
+                // 클라이언트의 첫 번째 메시지를 받아 userID 설정
+                Object firstMessage = objIn.readObject();
+                if (firstMessage instanceof FileChatMsg) {
+                    FileChatMsg msg = (FileChatMsg) firstMessage;
+                    if (msg.getMode() == FileChatMsg.MODE_LOGIN) {
+                        userID = msg.getMessage(); // 클라이언트 ID 설정
+                        printDisplay("클라이언트 연결됨: " + userID);
 
-                // 입장 메시지 브로드캐스트
-                FileChatMsg joinMsg = new FileChatMsg("System", FileChatMsg.MODE_TX_STRING, userID + " 님이 입장하셨습니다.");
-                broadcast(joinMsg, this);
+                        // 입장 메시지 브로드캐스트
+                        FileChatMsg joinMsg = new FileChatMsg("System", FileChatMsg.MODE_TX_STRING, userID + " 님이 입장하셨습니다.");
+                        broadcast(joinMsg, this);
 
-                synchronized (chattingData) {
-                    for(FileChatMsg msg : chattingData){
-                        rewrite(msg, this);
+                        // 기존 채팅 데이터 전송
+                        synchronized (chattingData) {
+                            for (FileChatMsg dataMsg : chattingData) {
+                                rewrite(dataMsg, this);
+                            }
+                        }
+                    } else {
+                        printDisplay("유효하지 않은 첫 번째 메시지입니다.");
+                        disconnect();
+                        return;
                     }
                 }
 
@@ -80,12 +134,13 @@ public class ChatServer {
                     Object received = objIn.readObject();
                     if (received instanceof FileChatMsg) {
                         FileChatMsg msg = (FileChatMsg) received;
+                        printDisplay(userID + ":" + msg);
                         handleMessage(msg);
                         chattingData.add(msg);
                     }
                 }
             } catch (IOException | ClassNotFoundException e) {
-                System.err.println("클라이언트 처리 오류: " + e.getMessage());
+                printDisplay("클라이언트 처리 오류: " + e.getMessage());
             } finally {
                 disconnect();
             }
@@ -93,7 +148,7 @@ public class ChatServer {
 
         private void disconnect() {
             try {
-                System.out.println("클라이언트 연결 종료: " + socket.getInetAddress());
+                printDisplay("클라이언트 연결 종료: " + socket.getInetAddress());
                 clients.remove(this);
 
                 // 퇴장 메시지 브로드캐스트
@@ -102,7 +157,7 @@ public class ChatServer {
 
                 socket.close();
             } catch (IOException e) {
-                System.err.println("클라이언트 소켓 종료 오류: " + e.getMessage());
+                printDisplay("클라이언트 소켓 종료 오류: " + e.getMessage());
             }
         }
 
@@ -118,7 +173,7 @@ public class ChatServer {
                     client.objOut.writeObject(msg);
                     client.objOut.flush();
                 } catch (IOException e) {
-                    System.err.println("브로드캐스트 오류: " + e.getMessage());
+                    printDisplay("브로드캐스트 오류: " + e.getMessage());
                 }
             }
         }

@@ -1,3 +1,7 @@
+import javax.swing.*;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultStyledDocument;
+import java.awt.*;
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -5,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static java.lang.System.out;
 
-public class SocketServer {
+public class SocketServer extends JFrame {
     private static final int PORT = 12345;
     private final Map<String, String> userStatuses = new ConcurrentHashMap<>(); // 사용자 상태 메시지
     private final Map<String, Boolean> activeUsers = new ConcurrentHashMap<>(); // 접속 중인 사용자 ID
@@ -13,16 +17,56 @@ public class SocketServer {
     public static ConcurrentHashMap<String, Integer> roomPortMap = new ConcurrentHashMap<>();
     private final Map<String, ClientHandler> userClientMap = new ConcurrentHashMap<>();
 
+    private JTextPane t_display;
+    private DefaultStyledDocument document;
 
     public static void main(String[] args) {
-        new SocketServer().startServer();
+        new SocketServer();
+    }
+
+    public SocketServer(){
+        buildGUI();
+        startServer();
+    }
+
+    private void buildGUI(){
+        setTitle("SocketServer");
+        setSize(400,600);
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        add(createDisplayPanel(), BorderLayout.CENTER);
+        setVisible(true);
+    }
+
+    private JPanel createDisplayPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+
+        document = new DefaultStyledDocument();
+        t_display = new JTextPane(document);
+
+        t_display.setEditable(false);
+
+        panel.add(new JScrollPane(t_display), BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    private void printDisplay(String msg) {
+        int len = t_display.getDocument().getLength();
+
+        try {
+            document.insertString(len, msg + "\n", null);
+        } catch (BadLocationException e) {
+            e.printStackTrace();
+        }
+
+        t_display.setCaretPosition(len);
     }
 
     public void startServer() {
         loadUserStatusesFromFile(); // 서버 시작 시 상태 메시지 로드
         Runtime.getRuntime().addShutdownHook(new Thread(this::saveUserStatusesToFile)); // 서버 종료 시 상태 메시지 저장
 
-        out.println("서버 시작 중...");
+        printDisplay("서버 시작 중...");
         try (ServerSocket serverSocket = new ServerSocket(PORT)) {
             while (true) {
                 Socket clientSocket = serverSocket.accept();
@@ -56,16 +100,16 @@ public class SocketServer {
 
     // 현재 접속자 목록 출력 (서버 콘솔용)
     public synchronized void displayActiveUsers() {
-        out.println("=== 현재 접속자 목록 ===");
+        printDisplay("=== 현재 접속자 목록 ===");
         if (activeUsers.isEmpty()) {
-            out.println("현재 접속 중인 사용자가 없습니다.");
+            printDisplay("현재 접속 중인 사용자가 없습니다.");
         } else {
             for (String user : activeUsers.keySet()) {
-                out.println("- " + user);
+                printDisplay("- " + user);
             }
 
         }
-        out.println("====================");
+        printDisplay("====================");
     }
 
     // CSV 파일에서 상태 메시지 로드
@@ -78,9 +122,9 @@ public class SocketServer {
                     userStatuses.put(parts[0], parts[1]);
                 }
             }
-            out.println("상태 메시지 데이터 로드 완료.");
+            printDisplay("상태 메시지 데이터 로드 완료.");
         } catch (IOException e) {
-            out.println("상태 메시지 로드 중 오류 발생: " + e.getMessage());
+            printDisplay("상태 메시지 로드 중 오류 발생: " + e.getMessage());
         }
     }
 
@@ -91,9 +135,9 @@ public class SocketServer {
                 writer.write(entry.getKey() + "," + entry.getValue());
                 writer.newLine();
             }
-            out.println("상태 메시지 데이터 저장 완료.");
+            printDisplay("상태 메시지 데이터 저장 완료.");
         } catch (IOException e) {
-            out.println("상태 메시지 저장 중 오류 발생: " + e.getMessage());
+            printDisplay("상태 메시지 저장 중 오류 발생: " + e.getMessage());
         }
     }
 
@@ -123,14 +167,14 @@ public class SocketServer {
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 out = new PrintWriter(socket.getOutputStream(), true);
 
-                System.out.println("클라이언트 연결 수립: " + socket.getInetAddress());
+                printDisplay("클라이언트 연결 수립: " + socket.getInetAddress());
                 String message;
                 while ((message = in.readLine()) != null) {
-                    System.out.println("클라이언트 메시지: " + message);
+                    printDisplay("클라이언트 메시지: " + message);
                     if (message.startsWith("LOGIN:")) {
                         userID = message.substring(6).trim();
-                        System.out.println("현재 activeUsers: " + activeUsers.keySet());
-                        System.out.println("로그인 요청 userID: [" + userID + "]");
+                        printDisplay("현재 activeUsers: " + activeUsers.keySet());
+                        printDisplay("로그인 요청 userID: [" + userID + "]");
 
                         if (activeUsers.putIfAbsent(userID, true) != null) {
                             sendMessage("ERROR: 이미 로그인된 사용자입니다.");
@@ -141,7 +185,7 @@ public class SocketServer {
 
                         sendMessage("WELCOME");
                         userStatuses.putIfAbsent(userID, "상태 메시지 없음"); // 기본 상태 메시지 추가
-                        System.out.println(userID + "님이 로그인했습니다.");
+                        printDisplay(userID + "님이 로그인했습니다.");
                         server.displayActiveUsers();
                         server.broadcastStatus();
                     }
@@ -154,7 +198,7 @@ public class SocketServer {
                         server.broadcastStatus(); // 변경 사항 브로드캐스트
                     }
                     else if (message.startsWith("ADD_FRIEND:")) {
-                        System.out.println("ADD_FRIEND 요청 수신: " + message);
+                        printDisplay("ADD_FRIEND 요청 수신: " + message);
 
                         String targetID = message.substring(11).trim();
                         for (ClientHandler client : clients.keySet()) {
@@ -190,15 +234,15 @@ public class SocketServer {
                             if (roomPortMap.containsKey(oldTitle)) {
                                 roomPortMap.remove(oldTitle);
                                 roomPortMap.put(newTitle, port);
-                                System.out.println("방 제목 변경 처리됨: " + oldTitle + " -> " + newTitle);
+                                printDisplay("방 제목 변경 처리됨: " + oldTitle + " -> " + newTitle);
                             } else {
-                                System.out.println("오류: 변경하려는 방 제목이 서버에 존재하지 않습니다.");
+                                printDisplay("오류: 변경하려는 방 제목이 서버에 존재하지 않습니다.");
                             }
                         }
                     }
                 }
             } catch (IOException e) {
-                System.out.println("클라이언트 연결 종료 또는 예외 발생: " + e.getMessage());
+                printDisplay("클라이언트 연결 종료 또는 예외 발생: " + e.getMessage());
             } finally {
                 logout(); // 연결 종료 시 로그아웃 처리
             }
@@ -227,7 +271,7 @@ public class SocketServer {
             }
 
             if (port == -1) {
-                out.println("오류: 채팅방 포트 번호를 찾을 수 없습니다.");
+                printDisplay("오류: 채팅방 포트 번호를 찾을 수 없습니다.");
                 return;
             }
 
@@ -236,16 +280,16 @@ public class SocketServer {
                 ClientHandler friendHandler = userClientMap.get(friendID);
                 if (friendHandler != null) {
                     friendHandler.sendMessage("ALERT:" + userID + "님이 채팅방 '" + roomName + "'(포트: " + port + ")에 초대했습니다.");
-                    out.println(userID + "님이 " + friendID + "님에게 초대 알림을 보냈습니다.");
+                    printDisplay(userID + "님이 " + friendID + "님에게 초대 알림을 보냈습니다.");
                 } else {
-                    out.println("초대 실패: " + friendID + "님이 접속 중이 아닙니다.");
+                    printDisplay("초대 실패: " + friendID + "님이 접속 중이 아닙니다.");
                 }
             }
         }
 
 
         private void logout() {
-            System.out.println(userID + "님이 로그아웃했습니다.");
+            printDisplay(userID + "님이 로그아웃했습니다.");
             activeUsers.remove(userID); // 사용자 제거
             server.displayActiveUsers();
             clients.remove(this); // 클라이언트 목록에서 제거
@@ -260,6 +304,7 @@ public class SocketServer {
         public void sendMessage(String message) {
             if (out != null) {
                 out.println(message);
+                printDisplay(message);
             }
         }
 
